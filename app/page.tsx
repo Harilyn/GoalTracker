@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Target, Calendar, CheckCircle2, Circle, Search, TrendingUp, BookOpen } from "lucide-react"
+import { Plus, Target, Calendar, CheckCircle2, Circle, Search, TrendingUp, BookOpen, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -68,6 +68,16 @@ function LifeGoalsApp() {
   })
   const [activeTab, setActiveTab] = useState<"goals" | "study">("goals")
 
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
+  const [isEditGoalOpen, setIsEditGoalOpen] = useState(false)
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    category: "",
+    priority: "medium" as const,
+    targetDate: "",
+  })
+
   // Load goals from localStorage on component mount
   useEffect(() => {
     const savedGoals = localStorage.getItem("lifeGoals")
@@ -129,6 +139,59 @@ function LifeGoalsApp() {
 
   const deleteGoal = (id: string) => {
     setGoals(goals.filter((goal) => goal.id !== id))
+  }
+
+  const startEditGoal = (goal: Goal) => {
+    setEditingGoal(goal)
+    setEditForm({
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      priority: goal.priority,
+      targetDate: goal.targetDate || "",
+    })
+    setIsEditGoalOpen(true)
+  }
+
+  const saveEditGoal = () => {
+    if (!editingGoal || !editForm.title.trim()) return
+
+    setGoals(
+      goals.map((goal) =>
+        goal.id === editingGoal.id
+          ? {
+              ...goal,
+              title: editForm.title,
+              description: editForm.description,
+              category: editForm.category,
+              priority: editForm.priority,
+              targetDate: editForm.targetDate || undefined,
+            }
+          : goal,
+      ),
+    )
+
+    setEditingGoal(null)
+    setIsEditGoalOpen(false)
+    setEditForm({
+      title: "",
+      description: "",
+      category: "",
+      priority: "medium",
+      targetDate: "",
+    })
+  }
+
+  const cancelEditGoal = () => {
+    setEditingGoal(null)
+    setIsEditGoalOpen(false)
+    setEditForm({
+      title: "",
+      description: "",
+      category: "",
+      priority: "medium",
+      targetDate: "",
+    })
   }
 
   const filteredGoals = goals.filter((goal) => {
@@ -362,6 +425,89 @@ function LifeGoalsApp() {
                   </div>
                 </DialogContent>
               </Dialog>
+              <Dialog open={isEditGoalOpen} onOpenChange={setIsEditGoalOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Edit Goal</DialogTitle>
+                    <DialogDescription>Update your goal details and track your progress.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-title">Goal Title</Label>
+                      <Input
+                        id="edit-title"
+                        placeholder="e.g., Learn to play guitar"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-description">Description</Label>
+                      <Textarea
+                        id="edit-description"
+                        placeholder="Describe your goal in detail..."
+                        value={editForm.description}
+                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-category">Category</Label>
+                        <Select
+                          value={editForm.category}
+                          onValueChange={(value) => setEditForm({ ...editForm, category: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category.value} value={category.value}>
+                                {category.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-priority">Priority</Label>
+                        <Select
+                          value={editForm.priority}
+                          onValueChange={(value: "low" | "medium" | "high") =>
+                            setEditForm({ ...editForm, priority: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-targetDate">Target Date (Optional)</Label>
+                      <Input
+                        id="edit-targetDate"
+                        type="date"
+                        value={editForm.targetDate}
+                        onChange={(e) => setEditForm({ ...editForm, targetDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={saveEditGoal} className="flex-1">
+                        Save Changes
+                      </Button>
+                      <Button variant="outline" onClick={cancelEditGoal}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {/* Goals Grid */}
@@ -430,9 +576,14 @@ function LifeGoalsApp() {
                               +10%
                             </Button>
                           </div>
-                          <Button size="sm" variant="destructive" onClick={() => deleteGoal(goal.id)}>
-                            Delete
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => startEditGoal(goal)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => deleteGoal(goal.id)}>
+                              Delete
+                            </Button>
+                          </div>
                         </div>
 
                         {goal.targetDate && (
