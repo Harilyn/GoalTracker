@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Clock, BookOpen, Trash2, CheckCircle2, Calendar } from "lucide-react"
+import { Plus, Clock, BookOpen, Trash2, CheckCircle2, Calendar, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -65,7 +65,18 @@ export default function StudyTimetable() {
   const [selectedDay, setSelectedDay] = useState("Monday")
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false)
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false)
+  const [isEditSessionOpen, setIsEditSessionOpen] = useState(false)
   const [editingSession, setEditingSession] = useState<StudySession | null>(null)
+  const [editForm, setEditForm] = useState({
+    courseId: "",
+    day: "Monday",
+    startTime: "",
+    endTime: "",
+    topics: [] as Topic[],
+    notes: "",
+    date: "",
+  })
+  const [editTopic, setEditTopic] = useState("")
 
   const [newCourse, setNewCourse] = useState({
     name: "",
@@ -230,6 +241,90 @@ export default function StudyTimetable() {
     }
   }
 
+  const startEditSession = (session: StudySession) => {
+    setEditingSession(session)
+    setEditForm({
+      courseId: session.courseId,
+      day: session.day,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      topics: [...session.topics],
+      notes: session.notes || "",
+      date: session.date,
+    })
+    setIsEditSessionOpen(true)
+  }
+
+  const addTopicToEditSession = () => {
+    if (!editTopic.trim()) return
+
+    const topic: Topic = {
+      id: Date.now().toString(),
+      name: editTopic,
+      completed: false,
+    }
+
+    setEditForm({
+      ...editForm,
+      topics: [...editForm.topics, topic],
+    })
+    setEditTopic("")
+  }
+
+  const removeTopicFromEditSession = (topicId: string) => {
+    setEditForm({
+      ...editForm,
+      topics: editForm.topics.filter((t) => t.id !== topicId),
+    })
+  }
+
+  const saveEditSession = () => {
+    if (!editingSession || !editForm.courseId || !editForm.startTime || !editForm.endTime) return
+
+    setStudySessions(
+      studySessions.map((session) =>
+        session.id === editingSession.id
+          ? {
+              ...session,
+              courseId: editForm.courseId,
+              day: editForm.day,
+              startTime: editForm.startTime,
+              endTime: editForm.endTime,
+              topics: editForm.topics,
+              notes: editForm.notes,
+              date: editForm.date,
+            }
+          : session,
+      ),
+    )
+
+    setEditingSession(null)
+    setIsEditSessionOpen(false)
+    setEditForm({
+      courseId: "",
+      day: "Monday",
+      startTime: "",
+      endTime: "",
+      topics: [],
+      notes: "",
+      date: "",
+    })
+  }
+
+  const cancelEditSession = () => {
+    setEditingSession(null)
+    setIsEditSessionOpen(false)
+    setEditForm({
+      courseId: "",
+      day: "Monday",
+      startTime: "",
+      endTime: "",
+      topics: [],
+      notes: "",
+      date: "",
+    })
+  }
+
   const stats = getWeeklyStats()
 
   return (
@@ -350,7 +445,7 @@ export default function StudyTimetable() {
               Add Study Session
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Study Session</DialogTitle>
               <DialogDescription>Schedule a new study session with topics to cover.</DialogDescription>
@@ -436,15 +531,20 @@ export default function StudyTimetable() {
                     Add
                   </Button>
                 </div>
-                <div className="mt-2 space-y-2">
-                  {newSession.topics.map((topic) => (
-                    <div key={topic.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                      <span>{topic.name}</span>
-                      <Button size="sm" variant="ghost" onClick={() => removeTopicFromNewSession(topic.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                {/* Make this section scrollable with max height */}
+                <div className="mt-2 max-h-40 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50">
+                  {newSession.topics.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No topics added yet</p>
+                  ) : (
+                    newSession.topics.map((topic) => (
+                      <div key={topic.id} className="flex items-center justify-between bg-white p-2 rounded border">
+                        <span className="text-sm">{topic.name}</span>
+                        <Button size="sm" variant="ghost" onClick={() => removeTopicFromNewSession(topic.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               <div>
@@ -461,6 +561,126 @@ export default function StudyTimetable() {
                   Add Session
                 </Button>
                 <Button variant="outline" onClick={() => setIsAddSessionOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditSessionOpen} onOpenChange={setIsEditSessionOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Study Session</DialogTitle>
+              <DialogDescription>Update your study session details and topics.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editSessionCourse">Course</Label>
+                  <Select
+                    value={editForm.courseId}
+                    onValueChange={(value) => setEditForm({ ...editForm, courseId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="editSessionDay">Day</Label>
+                  <Select value={editForm.day} onValueChange={(value) => setEditForm({ ...editForm, day: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {daysOfWeek.map((day) => (
+                        <SelectItem key={day} value={day}>
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="editStartTime">Start Time</Label>
+                  <Input
+                    id="editStartTime"
+                    type="time"
+                    value={editForm.startTime}
+                    onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editEndTime">End Time</Label>
+                  <Input
+                    id="editEndTime"
+                    type="time"
+                    value={editForm.endTime}
+                    onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editSessionDate">Date</Label>
+                  <Input
+                    id="editSessionDate"
+                    type="date"
+                    value={editForm.date}
+                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Topics to Cover</Label>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Add a topic..."
+                    value={editTopic}
+                    onChange={(e) => setEditTopic(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && addTopicToEditSession()}
+                  />
+                  <Button type="button" onClick={addTopicToEditSession}>
+                    Add
+                  </Button>
+                </div>
+                <div className="mt-2 max-h-40 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50">
+                  {editForm.topics.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No topics added yet</p>
+                  ) : (
+                    editForm.topics.map((topic) => (
+                      <div key={topic.id} className="flex items-center justify-between bg-white p-2 rounded border">
+                        <span className="text-sm">{topic.name}</span>
+                        <Button size="sm" variant="ghost" onClick={() => removeTopicFromEditSession(topic.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="editSessionNotes">Notes (Optional)</Label>
+                <Textarea
+                  id="editSessionNotes"
+                  placeholder="Additional notes for this session..."
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={saveEditSession} className="flex-1">
+                  Save Changes
+                </Button>
+                <Button variant="outline" onClick={cancelEditSession}>
                   Cancel
                 </Button>
               </div>
@@ -544,6 +764,9 @@ export default function StudyTimetable() {
                         <Badge variant="secondary">
                           {completedTopics}/{totalTopics} topics ({completionPercentage}%)
                         </Badge>
+                        <Button size="sm" variant="outline" onClick={() => startEditSession(session)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => deleteSession(session.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
